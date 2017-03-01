@@ -81,8 +81,7 @@ Results <- list() # for different respondent groups
 print("Get results.")
 
 print ("Gender")
-all_idx <- c(1:N) # respondents to take into account
-Results[["sex"]][["All"]] <- get_Results(data_all, q_meth_names, correct, all_idx)
+Results[["sex"]][["All"]] <- get_Results(data_all, q_meth_names, correct, groups_all[["All"]])
 Results[["sex"]][["males"]] <- get_Results(data_all, q_meth_names, correct, groups_all[["males"]])
 Results[["sex"]][["females"]] <- get_Results(data_all, q_meth_names, correct, groups_all[["females"]])
 
@@ -120,12 +119,12 @@ Results[["ExpGend"]][["expert_no_females"]] <- get_Results(data_all, q_meth_name
                                                                 groups_all[["expert_no_females"]])
 
 # Training needs
-Results[["Training needs"]][["All"]] <- get_training_needs(data_ori, all_idx)
-Results[["Training needs"]][["males"]] <- get_training_needs(data_ori, groups_all[["males"]])
-Results[["Training needs"]][["females"]] <- get_training_needs(data_ori, groups_all[["females"]])
+Results[["Training needs"]][["All"]] <- get_training_needs(data_all, groups_all[["All"]])
+Results[["Training needs"]][["males"]] <- get_training_needs(data_all, groups_all[["males"]])
+Results[["Training needs"]][["females"]] <- get_training_needs(data_all, groups_all[["females"]])
 
 # Researcher type
-Results[["Research area"]][["All"]] <- get_Results(data_all, q_meth_names, correct, all_idx)
+Results[["Research area"]][["All"]] <- get_Results(data_all, q_meth_names, correct, groups_all[["All"]])
 Results[["Research area"]][["males"]] <- get_Results(data_all, q_meth_names, correct,
                                                                 groups_all[["males"]])
 Results[["Research area"]][["females"]] <- get_Results(data_all, q_meth_names, correct,
@@ -148,14 +147,14 @@ Results[["Research area"]][["Postdoc females"]] <- get_Results(data_all, q_meth_
                                                                 groups_all[["researcher_postdoc_females"]])
 
 # Future area counts
-Results[["Research area cnts"]][["All"]] <- get_research_area(data_ori, all_idx)
-Results[["Research area cnts"]][["males"]] <- get_research_area(data_ori, groups_all[["males"]])
-Results[["Research area cnts"]][["females"]] <- get_research_area(data_ori, groups_all[["females"]])
+Results[["Research area cnts"]][["All"]] <- get_research_area(data_all, groups_all[["All"]])
+Results[["Research area cnts"]][["males"]] <- get_research_area(data_all, groups_all[["males"]])
+Results[["Research area cnts"]][["females"]] <- get_research_area(data_all, groups_all[["females"]])
 
 # Future area counts
-Results[["Future area cnts"]][["All"]] <- get_future_area(data_ori, all_idx)
-Results[["Future area cnts"]][["males"]] <- get_future_area(data_ori, groups_all[["males"]])
-Results[["Future area cnts"]][["females"]] <- get_future_area(data_ori, groups_all[["females"]])
+Results[["Future area cnts"]][["All"]] <- get_future_area(data_all, groups_all[["All"]])
+Results[["Future area cnts"]][["males"]] <- get_future_area(data_all, groups_all[["males"]])
+Results[["Future area cnts"]][["females"]] <- get_future_area(data_all, groups_all[["females"]])
 
 
 # SUMMARY PLOTS across ALL QUESTIONS
@@ -166,10 +165,16 @@ pdf_name <- sprintf("%sSummaries_General.pdf", fig_outdir) # avoid some problems
 pdf(pdf_name, onefile=TRUE)
 print ( sprintf("Plotting to PDF: %s", pdf_name) )
 
+# All
+print ("All")
+groups <- c("All")
+bar_legend <- c("All")
+plot_bargraphs(Results[["sex"]], groups, "sum", restype, "All", bar_legend)
+
 # gender
 print ("Gender")
-groups <- c("All", "males", "females")
-bar_legend <- c("All", "males", "females")
+groups <- c("males", "females")
+bar_legend <- c("males", "females")
 plot_bargraphs(Results[["sex"]], groups, "sum", restype, "Gender", bar_legend)
 
 # degree
