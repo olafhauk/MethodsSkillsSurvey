@@ -43,6 +43,12 @@ prune_respondents <- function(data_all, qnames)
 
     print( sprintf("Number of respondents who skipped all knowledge questions: %d", n_skip_all))
 
+    # some awkward entries
+    if (data$Age[[34]] == "40br")
+    {
+        data$Age[[34]] = "40.000000" # I assume typo
+    }
+
     return( data )
 }
 
@@ -249,8 +255,18 @@ get_Results <- function(data, q_names, correct, idx)
     Results_inds <- list()
 
     # data frame for results for individual participants across questions
-    Results_indiv <- as.data.frame(0*c(1:n_pp))
-    names(Results_indiv)[1] <- "AllQs"
+    Results_indiv <- list()
+    Q_categs <- c("AllQs") # question categories
+    r_categs <- c("Cor", "Err", "NoI") # response categories
+    for (qq in Q_categs)
+    {
+        for (rr in r_categs)
+        {
+            Results_indiv[[qq]][[rr]] <- matrix(0,n_pp,1)
+        }
+    }
+    n_qq <- length(q_names) # number of questions considered
+    a_qq <- 1/n_qq - 0.0000000001 # glm() didn't work if some values exactly 1 ###
 
 	Results_out <- list() # to be returned by this function
 
@@ -277,7 +293,9 @@ get_Results <- function(data, q_names, correct, idx)
         Results_inds[[qq]][["Skd"]] <- list(skd_inds)
 
         # update individual results
-        Results_indiv[["AllQs"]][cor_inds] <- Results_indiv[["AllQs"]][cor_inds] + 1
+        Results_indiv[["AllQs"]][["Cor"]][cor_inds] <- Results_indiv[["AllQs"]][["Cor"]][cor_inds] + a_qq
+        Results_indiv[["AllQs"]][["Err"]][err_inds] <- Results_indiv[["AllQs"]][["Err"]][err_inds] + a_qq
+        Results_indiv[["AllQs"]][["NoI"]][noi_inds] <- Results_indiv[["AllQs"]][["NoI"]][noi_inds] + a_qq
 
 		# all responses
 		Results_counts["Cor",qq] <- length( cor_inds ) # reponse correct	
@@ -291,7 +309,7 @@ get_Results <- function(data, q_names, correct, idx)
 
 		# turn into fractions
 		Results_frac[[qq]] <- Results_counts[[qq]]/n_resp
-	} # qq    
+	} # qq
 
     # summary of results across questions
     Sum_counts <- as.data.frame(c(1:4)) # data frame for number of responses
@@ -524,6 +542,21 @@ plot_general_questions <- function(data, groups, my_title, bar_names, bar_legend
 
     n_groups <- length(groups)
 
+    if (n_groups==9) {
+        colors <- c("black", "violetred4", "blue", "grey40", "orange1", "lightblue1", "grey80", "darkred", "darkblue")
+    } else if (n_groups==6) {
+        colors <- c("violetred4", "blue", "orange1", "lightblue1", "darkred", "darkblue")
+    }
+    else if (n_groups==3) {
+         colors <- c("black", "violetred4", "blue")
+    }
+    else if (n_groups==2) {
+         colors <- c("violetred4", "blue")
+    }
+    else {
+        colors <- c()
+    }    
+
     n_bars <- length(data[[1]])
     
     ### get data into matrices for bar plots
@@ -540,7 +573,7 @@ plot_general_questions <- function(data, groups, my_title, bar_names, bar_legend
     }
    
     # bar plot with labels
-    bardat <- barplot(data_mats, names=bar_names, beside=T, cex.axis=2, cex.names=2, legend=bar_legend)
+    bardat <- barplot(data_mats, names=bar_names, beside=T, cex.axis=2, col=colors, cex.names=2, legend=bar_legend)
     # arrows(bardat,Dat+SD, bardat, Dat, angle=90, code=1, length=0)
     title( my_title )
 }
@@ -557,6 +590,21 @@ plot_bargraphs <- function(data, groups, quest, restype, my_title, bar_legend)
 # bar_legend: what to use as legend in bar graphs, for items in "groups"
 
     n_groups <- length(groups)
+    
+    if (n_groups==9) {
+        colors <- c("black", "violetred4", "blue", "grey40", "orange1", "lightblue1", "grey80", "darkred", "darkblue")
+    } else if (n_groups==6) {
+        colors <- c("violetred4", "blue", "orange1", "lightblue1", "darkred", "darkblue")
+    }
+    else if (n_groups==3) {
+         colors <- c("black", "violetred4", "blue")
+    }
+    else if (n_groups==2) {
+         colors <- c("violetred4", "blue")
+    }
+    else {
+        colors <- c()
+    }
 
     # response types to plot (assumed to be present in this sequence in data)
     names <- c("Corr", "Err", "No idea", "Skipped")
@@ -582,61 +630,57 @@ plot_bargraphs <- function(data, groups, quest, restype, my_title, bar_legend)
             
         ### error bars are NONSENSE at the moment, SD doesn't make sense
         # SD <- sd(Dat)
-        # bar plot with labels
-        bardat <- barplot(data_mats, names=names[to_plot], beside=T, cex.axis=2, cex.names=2, legend=bar_legend)
+        # bar plot with labels        
+        bardat <- barplot(data_mats, names=names[to_plot], beside=T, cex.axis=2, col=colors, cex.names=2, legend=bar_legend)
         # legend("topright", legend=bar_legend, cex = 1, ncol=2)
         title( my_title )
     }
 }
 
 
-logistic_regression <- function(data_all, iv1, q_names)
+get_dep_var <- function(Results_sub, qq, categ)
 {
-# compute logistic regression
+# create dependent variable for logistic_regression
+# Results_sub: sub structure of Results (e.g. Results[["sex"]][["All"]])
+# qq: string, name of questions
+# categ: string, response category "Cor"/"Err"/"NoI"/"Skd"
+    n <- nrow(Results_sub[["indiv"]][["AllQs"]][["Cor"]]) # number of participants, doesn't depend on qq or categ
+    tmp <- matrix(0,n,1)
+    tmp[ Results_sub[["inds"]][[qq]][[categ]][[1]] ] <- 1
+    dv <- factor( tmp )
+    return( dv )
+}
+
+
+
+logistic_regression <- function(dv, iv, family="binomial")
+{
+# compute logistic regression using glm and family="binomial"
+# dv: factor, dependent variable
+# iv: factor, independent variable
+# family: string, family of error distribution for glm()
+# Returns: stat_list (list)
     
     stat_list <- list()
+    
+    # combine in data frame
+    data_glm <- data.frame(dv, iv)
 
-    # independent variables
+    # compute logistic regression model
+    glm_out <- glm(dv ~ iv, data=data_glm, family=family)
 
-    # male/female:
-    iv1 <- factor( 1*groups_all[["males"]] )
+    # get p-value
+    p_fit <- coef(summary(glm_out))[,4]
+    coef_fit <- exp(coef(glm_out))
 
-    # undergraduate degree groups
-    tmp <- matrix(0,length(iv1),1)
-    tmp[which(groups_all[["ugrad_group_psych"]])] = 1
-    tmp[which(groups_all[["ugrad_group_biol"]])] = 2
-    tmp[which(groups_all[["ugrad_group_meth"]])] = 3
-    iv2 <- factor( tmp )
+    stat_list[["glm_out"]] <- glm_out
+    stat_list[["p"]] <- p_fit
+    stat_list[["coef"]] <- coef_fit
 
-    for (qq in q_names)
-    {
-        print( qq )
-        # dependent variable (correct responses)
-        # dv <- factor( 1*(data_all[[qq]] == correct[[qq]]) )
+    coef <- coef_fit[2]
+    p <- p_fit[2]
 
-        # iv[1:300] <- dv[1:300] # !!! CHANGE
+    print( sprintf("Coef: %f, p: %f", coef, p) )
 
-        dv <- 1*(data_all[[qq]] == 5) # no idea
-        # combine in data frame
-        data_glm1 <- data.frame(dv, iv1)
-        # compute logistic regression model
-        mylogit1 <- glm(dv ~ iv1, data=data_glm1, family="binomial")
-        # display results
-        # print( summary(mylogit1) )
-
-        # get p-value
-        p_fit <- coef(summary(mylogit1))[,4]
-        coef_fit <- exp(coef(mylogit1))
-
-        print( sprintf("Coef: %f, p: %f", coef_fit[2], p_fit[2]) )
-
-        stat_list[[qq]] <- mylogit1
-
-        # # interaction gender by undergrad degree
-        # data_glm2 <- data.frame(dv, iv1, iv2)
-        # # compute logistic regression model
-        # mylogit2 <- glm(dv ~ iv1 + iv2 + iv1*iv2, data=data_glm2, family="binomial")
-
-        # print( summary( mylogit2 ) )
-    }
+    return(stat_list)
 }

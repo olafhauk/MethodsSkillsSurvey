@@ -1,6 +1,9 @@
 # setwd('u:/documents/Methods/Methods_Skills_Survey_2015/R')
 # source('Prepare_SurveyMonkeyData.R')
 # install.packages('readxl')
+
+print("Sunshine")
+
 rm(list = ls()) # clear workspace
 
 library('readxl') # for reading data from Excel file
@@ -312,48 +315,78 @@ dev.off()
 graphics.off()
 
 ### STATISTICS
-stat_list <- list()
+stat_list <- list() # collect results from logistic regression
 
-# independent variables
+# response categories
+categs <- c("Cor", "Err", "NoI")
 
-# male/female:
-iv1 <- factor( 1*groups_all[["males"]] )
+## GENDER stats
+cat("\n\n")
+print("######################")
+print("GENDER.")
+cat("\n")
 
-# undergraduate degree groups
-tmp <- matrix(0,length(iv1),1)
+label <- "gender" # used as index in results
+
+# INDEPENDENT VARIABLE (male/female)
+iv <- factor( 1*groups_all[["males"]] )
+
+for (qq in q_meth_names)
+{
+    print( qq )
+
+    for (cc in categs)
+    {
+        dv <- get_dep_var(Results[["sex"]][["All"]], qq, cc)
+        stat_list[[qq]][[label]][[cc]] <- logistic_regression(dv, iv)
+    }
+}
+
+# for performance across all questions
+print("###")
+print("Across all questions - gender.")
+for (cc in categs)
+{
+    dv <- array( Results[["sex"]][["All"]][["indiv"]][["AllQs"]][[cc]] )
+
+    stat_list[[qq]][[label]][[cc]] <- logistic_regression(dv, iv, "quasibinomial")
+}
+
+
+## UNDERGRADUATE DEGREE stats
+cat("\n\n")
+print("######################")
+print("UNDERGRADUATE DEGREE.")
+cat("\n")
+
+label <- "undgrad" # used as index in results
+
+tmp <- matrix(0,nrow(data_all),1)
 tmp[which(groups_all[["ugrad_group_psych"]])] = 1
 tmp[which(groups_all[["ugrad_group_biol"]])] = 2
 tmp[which(groups_all[["ugrad_group_meth"]])] = 3
-iv2 <- factor( tmp )
 
-for (qq in q_names)
+# INDEPENDENT VARIABLE (undergrad degree)
+iv <- factor( tmp )
+
+for (qq in q_meth_names)
 {
     print( qq )
-    # dependent variable (correct responses)
-    # dv <- factor( 1*(data_all[[qq]] == correct[[qq]]) )
 
-    # iv[1:300] <- dv[1:300] # !!! CHANGE
+    for (cc in categs)
+    {
+        dv <- get_dep_var(Results[["sex"]][["All"]], qq, cc)
+        stat_list[[qq]][[label]][[cc]] <- logistic_regression(dv, iv)
+    }
+}
 
-    dv <- 1*(data_all[[qq]] == 5) # no idea
-    # combine in data frame
-    data_glm1 <- data.frame(dv, iv1)
-    # compute logistic regression model
-    mylogit1 <- glm(dv ~ iv1, data=data_glm1, family="binomial")
-    # display results
-    # print( summary(mylogit1) )
 
-    # get p-value
-    p_fit <- coef(summary(mylogit1))[,4]
-    coef_fit <- exp(coef(mylogit1))
+# for performance across all questions
+print("###")
+print("Across all questions - undergrad degree.")
+for (cc in categs)
+{
+    dv <- array( Results[["sex"]][["All"]][["indiv"]][["AllQs"]][[cc]] )
 
-    print( sprintf("Coef: %f, p: %f", coef_fit[2], p_fit[2]) )
-
-    stat_list[[qq]] <- mylogit1
-
-    # # interaction gender by undergrad degree
-    # data_glm2 <- data.frame(dv, iv1, iv2)
-    # # compute logistic regression model
-    # mylogit2 <- glm(dv ~ iv1 + iv2 + iv1*iv2, data=data_glm2, family="binomial")
-
-    # print( summary( mylogit2 ) )
+    stat_list[[qq]][[label]][[cc]] <- logistic_regression(dv, iv, "quasibinomial")
 }
