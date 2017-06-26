@@ -1,19 +1,19 @@
-# setwd('u:/documents/Methods/Methods_Skills_Survey_2015/R')
 # source('Prepare_SurveyMonkeyData.R')
-# install.packages('readxl')
 
 print("Sunshine")
 
 rm(list = ls()) # clear workspace
 
 library('readxl') # for reading data from Excel file
+# library(nnet) # for multinomial regression (multinom)
+library(VGAM) # for multinomial regression (vglm)
 
-setwd('U:/documents/Methods/Methods_Skills_Survey_2015/R')
+setwd('U:/Methods/Methods_Skills_Survey_2015/R')
 
-datain_filename <- 'U:/documents/Methods/Methods_Skills_Survey_2015/Sheet_1_converted_161212.xls'
+datain_filename <- 'U:/Methods/Methods_Skills_Survey_2015/Sheet_1_converted_161212.xls'
 
 # directory for bar plots etc.
-fig_outdir <- "U:/documents/Methods/Methods_Skills_Survey_2015/R/Figures/"
+fig_outdir <- "U:/Methods/Methods_Skills_Survey_2015/R/Figures/"
 print( sprintf("Writing figures to %s", fig_outdir))
 
 source('Survey_functions.R') # function that gets Results (counts, fractions) from data frame data
@@ -48,6 +48,7 @@ data_all <- data_ori[2:nrow(data_ori),]
 # PRUNE respondents with insufficient responses etc.
 data_all <- prune_respondents(data_all, qnames)
 
+
 N <- nrow( data_all ) # number of respondents
 
 print( sprintf("%d good respondents", N) )
@@ -79,7 +80,7 @@ print( sprintf("%d of respondents used the internet (males: %.2f, females: %.2f)
 ### Questions ###
 Results <- list() # for different respondent groups
 # Results will be of form:
-# Results[["sex"]][["males"]]$frac[[qq]] will produce four numbers Cor/Err/NoI/Skp
+# Results$sex$males$frac$Ohm will produce four numbers Cor/Err/NoI/Skp
 
 print("Get results.")
 
@@ -169,6 +170,7 @@ pdf(pdf_name, onefile=TRUE)
 print ( sprintf("Plotting to PDF: %s", pdf_name) )
 
 # All
+# Results$sex$All$sum_frac$sum
 print ("All")
 groups <- c("All")
 bar_legend <- c("All")
@@ -245,6 +247,7 @@ print ( sprintf("Plotting to PDF: %s", pdf_name) )
 # restype <- c("sum_counts", "sum_frac") # summary across all questions
 restype <- c("sum_qgroup_frac")
 
+# subgroups of questions
 qgroup_names <- list(linalg = "Linear Algebra", calc = "Calculus", progr = "Programming", signal = "Signal Analysis",
                 phys = "Physics", stats = "Statistics")
 
@@ -254,24 +257,28 @@ for (qq in names(qgroup_names))
     groups <- c("All", "males", "females")
     bar_legend <- c("All", "males", "females")
     title <- sprintf("Gender | %s", qgroup_names[qq])
+    print(title)
     plot_bargraphs(Results[["sex"]], groups, qq, restype, title, bar_legend)
 
     # degree
     groups <- c("ugrad_group_psych", "ugrad_group_meth", "ugrad_group_biol")
     bar_legend <- c("Undergrads Psychology", "Undergrads Methods", "Undergrads Biology")
     title <- sprintf("Undergraduate Degree | %s", qgroup_names[qq])
+    print(title)
     plot_bargraphs(Results[["degree"]], groups, qq, restype, title, bar_legend)
 
     # degree-by-sex
     groups <- c("ugrad_group_psych_males", "ugrad_group_psych_females", "ugrad_group_meth_males", "ugrad_group_meth_females", "ugrad_group_biol_males", "ugrad_group_biol_females")
     bar_legend <- c("Undergrads Psychology M", "Undergrads Psychology F", "Undergrads Methods M", "Undergrads Methods F", "Undergrads Biology M", "Undergrads Biology F")
     title <- sprintf("Degree-by-Gender | %s", qgroup_names[qq])
+    print(title)
     plot_bargraphs(Results[["deg_sex"]], groups, qq, restype, title, bar_legend)
 
     # expertise
     groups <- c("expert_yes", "expert_sortof", "expert_no")
     bar_legend <- c("Expert", "Sort of Expert", "No Export")
     title <- sprintf("Expertise | %s", qgroup_names[qq])
+    print(title)
     plot_bargraphs(Results[["Expertise"]], groups, qq, restype, title, bar_legend)
 }
 dev.off()
@@ -320,73 +327,109 @@ stat_list <- list() # collect results from logistic regression
 # response categories
 categs <- c("Cor", "Err", "NoI")
 
-## GENDER stats
+# factor undergraduate degree
+iv_ugrad <- matrix(0,nrow(data_all),1)
+iv_ugrad[which(groups_all[["ugrad_group_psych"]])] = 1
+iv_ugrad[which(groups_all[["ugrad_group_biol"]])] = 2
+iv_ugrad[which(groups_all[["ugrad_group_meth"]])] = 3
+
+iv_ugrad <- data.frame( iv_ugrad )
+
+# factor researcher type
+iv_restyp <- matrix(0,nrow(data_all),1)
+iv_restyp[which(groups_all[["researcher_undgrad"]])] = 1
+iv_restyp[which(groups_all[["researcher_phd"]])] = 2
+iv_restyp[which(groups_all[["researcher_postdoc"]])] = 3
+iv_restyp[which(groups_all[["researcher_master"]])] = 4
+iv_restyp[which(groups_all[["researcher_resass"]])] = 5
+iv_restyp[which(groups_all[["researcher_skipped"]])] = 6
+
+iv_restyp <- data.frame( iv_restyp )
+
+# factor gender
+iv_gender <- 1*groups_all[["males"]]
+iv_gender <- data.frame(iv_gender)
+
+
+
+## STATS (Logistic multiple regression)
 cat("\n\n")
 print("######################")
-print("GENDER.")
+print("GENDER (with UGRAD).")
 cat("\n")
 
 label <- "gender" # used as index in results
 
 # INDEPENDENT VARIABLE (male/female)
-iv <- factor( 1*groups_all[["males"]] )
+iv <- cbind(iv_gender, iv_ugrad, iv_restyp)
 
+# stats for individual questions
 for (qq in q_meth_names)
 {
+    cat("\n")
     print( qq )
 
     for (cc in categs)
     {
         dv <- get_dep_var(Results[["sex"]][["All"]], qq, cc)
-        stat_list[[qq]][[label]][[cc]] <- logistic_regression(dv, iv)
+        dv <- data.frame(dv)
+        
+        stat_list[[qq]][[label]][[cc]] <- binomial_regression(dv, iv)
     }
 }
 
+# stats for subgroups of questions
+for (qq in names(qgroup_names))
+{
+    cat("\n")
+    print( qq )
+
+    for (cc in categs)
+    {
+        dv <- array( Results[["sex"]][["All"]][["indiv"]][[qq]][[cc]] )
+        dv <- data.frame(dv)
+        
+        stat_list[[qq]][[label]][[cc]] <- binomial_regression(dv, iv, "quasibinomial")
+    }
+}
+
+
 # for performance across all questions
+cat("\n")
 print("###")
 print("Across all questions - gender.")
 for (cc in categs)
 {
+    cat("\n")
+    print( cc )
+
     dv <- array( Results[["sex"]][["All"]][["indiv"]][["AllQs"]][[cc]] )
+    dv <- data.frame(dv)
 
-    stat_list[[qq]][[label]][[cc]] <- logistic_regression(dv, iv, "quasibinomial")
+    stat_list[[qq]][[label]][[cc]] <- binomial_regression(dv, iv, "quasibinomial")
 }
 
-
-## UNDERGRADUATE DEGREE stats
-cat("\n\n")
-print("######################")
-print("UNDERGRADUATE DEGREE.")
-cat("\n")
-
-label <- "undgrad" # used as index in results
-
-tmp <- matrix(0,nrow(data_all),1)
-tmp[which(groups_all[["ugrad_group_psych"]])] = 1
-tmp[which(groups_all[["ugrad_group_biol"]])] = 2
-tmp[which(groups_all[["ugrad_group_meth"]])] = 3
-
-# INDEPENDENT VARIABLE (undergrad degree)
-iv <- factor( tmp )
-
-for (qq in q_meth_names)
-{
-    print( qq )
-
-    for (cc in categs)
-    {
-        dv <- get_dep_var(Results[["sex"]][["All"]], qq, cc)
-        stat_list[[qq]][[label]][[cc]] <- logistic_regression(dv, iv)
-    }
-}
-
-
+### TEST multinomial regression
 # for performance across all questions
-print("###")
-print("Across all questions - undergrad degree.")
+
+# organise IVs in groups that can be tested in model comparison
+iv_groups <- list()
+# beware of [[]]
+iv_groups[['gend']] <- iv_gender
+iv_groups[['ugrad']] <- iv_ugrad
+iv_groups[['restyp']] <- iv_restyp
+
+
+cat("\n")
+print("### MNR")
+print("Across all questions - gender.")
 for (cc in categs)
 {
-    dv <- array( Results[["sex"]][["All"]][["indiv"]][["AllQs"]][[cc]] )
+    cat("\n")
+    print( cc )
 
-    stat_list[[qq]][[label]][[cc]] <- logistic_regression(dv, iv, "quasibinomial")
+    dv <- array( Results[["sex"]][["All"]][["indiv"]][["AllQs"]][[cc]] )
+    dv <- data.frame(dv)
+
+    stat_list[[qq]][[label]][[cc]] <- multinomial_regression(dv, iv_groups)
 }

@@ -225,12 +225,15 @@ get_Results <- function(data, q_names, correct, idx)
 # e.g. Results_out$frac[[qq]] (qq: question name) will return for values for Corr/Err/NoI/Skp
 
 
+    Results_out <- list() # to be returned by this function
+
     # sub-groups of questions
     # NOTE: indices refer to q_meth_names (not q_names)
     # for reference:
     # qgroup_names <- list(linalg = "Linear Algebra", calc = "Calculus", progr = "Programming", signal = "Signal
     # Analysis", phys = "Physics", stats = "Statistics")
-    qgroup <- list(linalg = c(12,13), calc = c(9,10,11), progr = c(14,15,16), signal = c(2,3,4,7,8), phys = c(17,18), stats = c(1,5,6))
+    qgroup <- list(AllQs = c(1:18), linalg = c(12,13), calc = c(9,10,11), progr = c(14,15,16), signal = c(2,3,4,7,8), phys = c(17,18), stats = c(1,5,6))
+    # qgroup <- list(AllQs = c(1:18))
     qgroup_names <- names(qgroup)
     
     # reduce data frame to relevant respondents
@@ -256,62 +259,66 @@ get_Results <- function(data, q_names, correct, idx)
 
     # data frame for results for individual participants across questions
     Results_indiv <- list()
-    Q_categs <- c("AllQs") # question categories
     r_categs <- c("Cor", "Err", "NoI") # response categories
-    for (qq in Q_categs)
+    for (qq in qgroup_names)
     {
         for (rr in r_categs)
         {
-            Results_indiv[[qq]][[rr]] <- matrix(0,n_pp,1)
+            Results_indiv[[qq]][[rr]] <- matrix(0,n_pp,1) # initiatlise
         }
     }
-    n_qq <- length(q_names) # number of questions considered
-    a_qq <- 1/n_qq - 0.0000000001 # glm() didn't work if some values exactly 1 ###
 
-	Results_out <- list() # to be returned by this function
+    for (QQ in qgroup_names)
+    {
+        QQ_inds <- unlist(qgroup[QQ]) # indices to questions in this group
+        n_qq <- length(QQ_inds) # number of questions considered
+        a_qq <- 1/n_qq - 0.0000000001 # glm() didn't work if some values exactly 1 ###
 
-	for (qq in q_names)
-	{
-		values_now <- data[[qq]] # get data for current question from data frame
-		correct_now <- correct[[qq]] # this is the correct response for this question (1-4)
-		resp_vals <- c(1,2,3,4) # all four response options
-		incorr_now <- resp_vals[-correct_now] # values of incorrect responses (removes one element from vector)
+        q_names_now <- q_names[QQ_inds] # names of questions in this group
 
-        # indices of participants with correct responses
-        cor_inds <- which( data[[qq]] == correct_now )
-        # ... incorrect responses
-        err_inds <- which( data[[qq]] %in% incorr_now)
-        # ... no idea responses
-        noi_inds <- which( data[[qq]] == noidea )
-        # ... skipped responses
-        skd_inds <- which( is.na( data[[qq]] ) )
+    	for (qq in q_names_now)
+    	{
+    		values_now <- data[[qq]] # get data for current question from data frame
+    		correct_now <- correct[[qq]] # this is the correct response for this question (1-4)
+    		resp_vals <- c(1,2,3,4) # all four response options
+    		incorr_now <- resp_vals[-correct_now] # values of incorrect responses (removes one element from vector)
 
-        # indices to particants with corr/err/no/skd responses
-        Results_inds[[qq]][["Cor"]] <- list(cor_inds)
-        Results_inds[[qq]][["Err"]] <- list(err_inds)
-        Results_inds[[qq]][["NoI"]] <- list(noi_inds)
-        Results_inds[[qq]][["Skd"]] <- list(skd_inds)
+            # indices of participants with correct responses
+            cor_inds <- which( data[[qq]] == correct_now )
+            # ... incorrect responses
+            err_inds <- which( data[[qq]] %in% incorr_now)
+            # ... no idea responses
+            noi_inds <- which( data[[qq]] == noidea )
+            # ... skipped responses
+            skd_inds <- which( is.na( data[[qq]] ) )
 
-        # update individual results
-        Results_indiv[["AllQs"]][["Cor"]][cor_inds] <- Results_indiv[["AllQs"]][["Cor"]][cor_inds] + a_qq
-        Results_indiv[["AllQs"]][["Err"]][err_inds] <- Results_indiv[["AllQs"]][["Err"]][err_inds] + a_qq
-        Results_indiv[["AllQs"]][["NoI"]][noi_inds] <- Results_indiv[["AllQs"]][["NoI"]][noi_inds] + a_qq
+            # indices to particants with corr/err/no/skd responses
+            Results_inds[[qq]][["Cor"]] <- list(cor_inds)
+            Results_inds[[qq]][["Err"]] <- list(err_inds)
+            Results_inds[[qq]][["NoI"]] <- list(noi_inds)
+            Results_inds[[qq]][["Skd"]] <- list(skd_inds)
 
-		# all responses
-		Results_counts["Cor",qq] <- length( cor_inds ) # reponse correct	
-		Results_counts["Err",qq] <- length( err_inds ) # incorrect responses
-		Results_counts["NoI",qq] <- length( noi_inds ) # response "no idea"
-		Results_counts["Skd",qq] <- length( skd_inds ) # response skipped
-		# print( sprintf("Correct: %f   Err: %f   No idea: %f   Skipped: %f\n", Results["Cor",qq], Results["Err",qq], Results["NoI",qq], Results["Skd",qq]) )
+            # update individual results
+            Results_indiv[[QQ]][["Cor"]][cor_inds] <- Results_indiv[[QQ]][["Cor"]][cor_inds] + a_qq
+            Results_indiv[[QQ]][["Err"]][err_inds] <- Results_indiv[[QQ]][["Err"]][err_inds] + a_qq
+            Results_indiv[[QQ]][["NoI"]][noi_inds] <- Results_indiv[[QQ]][["NoI"]][noi_inds] + a_qq
 
-		n_good_resp <- Results_counts["Cor",qq] + Results_counts["Err",qq] + Results_counts["NoI",qq] # number of people who responded to this question
-		n_resp <- n_good_resp + Results_counts["Skd",qq] # all responses, incl. skipped
+    		# all responses
+    		Results_counts["Cor",qq] <- length( cor_inds ) # reponse correct	
+    		Results_counts["Err",qq] <- length( err_inds ) # incorrect responses
+    		Results_counts["NoI",qq] <- length( noi_inds ) # response "no idea"
+    		Results_counts["Skd",qq] <- length( skd_inds ) # response skipped
+    		# print( sprintf("Correct: %f   Err: %f   No idea: %f   Skipped: %f\n", Results["Cor",qq], Results["Err",qq], Results["NoI",qq], Results["Skd",qq]) )
 
-		# turn into fractions
-		Results_frac[[qq]] <- Results_counts[[qq]]/n_resp
-	} # qq
+    		n_good_resp <- Results_counts["Cor",qq] + Results_counts["Err",qq] + Results_counts["NoI",qq] # number of people who responded to this question
+    		n_resp <- n_good_resp + Results_counts["Skd",qq] # all responses, incl. skipped
 
-    # summary of results across questions
+    		# turn into fractions
+    		Results_frac[[qq]] <- Results_counts[[qq]]/n_resp
+    	} # qq
+    } # QQ
+
+    # summary of results across all questions
     Sum_counts <- as.data.frame(c(1:4)) # data frame for number of responses
     names(Sum_counts) <- "sum"
     row.names(Sum_counts) <- resp_cats
@@ -573,7 +580,7 @@ plot_general_questions <- function(data, groups, my_title, bar_names, bar_legend
     }
    
     # bar plot with labels
-    bardat <- barplot(data_mats, names=bar_names, beside=T, cex.axis=2, col=colors, cex.names=2, legend=bar_legend)
+    bardat <- barplot(data_mats, names=bar_names, beside=T, cex.axis=2, col=colors, cex.names=1, legend=bar_legend)
     # arrows(bardat,Dat+SD, bardat, Dat, angle=90, code=1, length=0)
     title( my_title )
 }
@@ -584,7 +591,7 @@ plot_bargraphs <- function(data, groups, quest, restype, my_title, bar_legend)
 # plot data to bar graph, for raw counts and fractions separately
 # data: list of data frames with data to plot
 # groups: string, indices to data for respondent group(s) to plot
-# quest: string, the question for which results to be plotted
+# quest: string, the question (or subgroups of questions) for which results to be plotted
 # restype: type of response to be plotted (e.g. "counts", "frac", "sum_counts")
 # my_title: string, title for plot
 # bar_legend: what to use as legend in bar graphs, for items in "groups"
@@ -653,21 +660,36 @@ get_dep_var <- function(Results_sub, qq, categ)
 
 
 
-logistic_regression <- function(dv, iv, family="binomial")
+binomial_regression <- function(dv, iv, family="binomial")
 {
 # compute logistic regression using glm and family="binomial"
-# dv: factor, dependent variable
-# iv: factor, independent variable
+# result computed for dv vs first column in iv
+# dv: data frame, dependent variable
+# iv: data frame, independent variables
 # family: string, family of error distribution for glm()
 # Returns: stat_list (list)
     
     stat_list <- list()
     
     # combine in data frame
-    data_glm <- data.frame(dv, iv)
+    data_glm <- cbind(dv, iv)
+
+    # formula for glm(): dv versus first column
+    frm <- paste("dv ~ ", names(iv)[1])
+
+    n_names <- length(names(iv))
+    for (nn in c(2:n_names)) # if more than one column in iv
+    {
+        frm <- paste(frm, "+ ", names(iv)[nn])
+    }
+
+    print("Binomial GLM formula:")
+    print(frm)
+
+    frm <- as.formula(frm)
 
     # compute logistic regression model
-    glm_out <- glm(dv ~ iv, data=data_glm, family=family)
+    glm_out <- glm(formula=frm, data=data_glm, family=family)
 
     # get p-value
     p_fit <- coef(summary(glm_out))[,4]
@@ -677,10 +699,103 @@ logistic_regression <- function(dv, iv, family="binomial")
     stat_list[["p"]] <- p_fit
     stat_list[["coef"]] <- coef_fit
 
-    coef <- coef_fit[2]
-    p <- p_fit[2]
+    # get interesting values for gender/ugrad/researcher type
+    coef_gender <- coef_fit[2]
+    p_gender <- p_fit[2]
+    coef_ugrad <- coef_fit[3]
+    p_ugrad <- p_fit[3]
+    coef_restyp <- coef_fit[4]
+    p_restyp <- p_fit[4]
 
-    print( sprintf("Coef: %f, p: %f", coef, p) )
+    print( sprintf("Gender - Coef: %f, p: %f", coef_gender, p_gender) )
+    print( sprintf("Ugrad - Coef: %f, p: %f", coef_ugrad, p_ugrad) )
+    print( sprintf("Res Type - Coef: %f, p: %f", coef_restyp, p_restyp) )
 
     return(stat_list)
+}
+
+multinomial_regression <- function(dv, iv_groups)
+{
+# compute multinomial logistic regression using multinom from nnet
+# result computed for dv vs first column in iv
+# dv: data frame, dependent variable
+# iv_groups: dict of data frames with independent variables
+#            each dict contains group of variables whose significant is
+#            to be tested separately in model comparison
+# Returns: stat_list (list)
+
+# still WIP
+    
+    stat_list <- list()
+
+    group_names <- names(iv_groups)
+    n_groups <- length(iv_groups)
+    
+    # combine in data frame
+    print("combine")
+    data_glm <- dv
+    for (gg in group_names)
+    {
+        data_glm <- cbind(data_glm, iv_groups[gg])
+    }
+
+    # formulas for regression: dv versus other columns
+    frm <- vector("list", n_groups+1)
+
+    # create different models with different predictors for model comparison
+    for (mm in c(1:(n_groups+1)))
+    {
+        print(mm)
+        frm[mm] <- "dv ~ "
+    }
+   
+    print("make formulas")
+    for (ff in c(1:(n_groups+1))) # per formula
+    {
+        pred_idx <- c(1:n_groups) # which predictor groups to include
+        if (ff>1) # include everything for first formula
+        {
+            pred_idx <- pred_idx[-(ff-1)] # remove appropriate predictor group
+        }
+
+        n_preds <- length(pred_idx)
+
+        for (pp in c(1:n_preds)) # across chosen predictor groups
+        {
+            print(pp)
+            n_iv <- length(iv_groups[group_names[pred_idx[pp]]])
+            print(group_names[pred_idx[pp]])
+            # beware of [[]]
+            iv_names <- names(iv_groups[[group_names[pred_idx[pp]]]])
+            print(iv_names)
+       
+            # add predictor groups to appropriate formulas
+            for (ii in c(1:n_iv))
+            {
+                if ((pp>1) || (ii>1))
+                {
+                    frm[ff] <- paste(frm[ff], "+ ")
+                }
+                frm[ff] <- paste(frm[ff], iv_names[ii])               
+            }
+        }
+    }
+   
+    print( sprintf("Formula %s vs %s", frm[1], frm[2]) )
+
+    frm1 <- as.formula(frm[[1]])
+    frm2 <- as.formula(frm[[2]])
+
+    # testing multinom ###
+    print("Multinomial regression.")
+    # mnr_out <- multinom(formula=frm, data=data_glm)
+    # refLevel specifies the element of response variable to use as reference
+
+    # http://dwoll.de/rexrepos/posts/regressionMultinom.html#model-comparisons---likelihood-ratio-tests
+    vglm_out1 <- vglm(formula=frm1, data=data_glm, family=multinomial(refLevel=1))
+    vglm_out2 <- vglm(formula=frm2, data=data_glm, family=multinomial(refLevel=1))
+
+    vglm_stats <- lrtest(vglm_out1, vglm_out2)
+
+    return(vglm_stats)
 }
