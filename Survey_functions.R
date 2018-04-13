@@ -38,11 +38,15 @@ prune_respondents <- function(data_all, qnames)
     n_all <- length(which(all_filt))
     n_skip_all <- length(which(is_na==20))
 
+    # # it appears those who didn't respond to methods questions also didn't respond to gender question
+    # n_skip_males <- length(which((is_na==20) & (data_all$Gender==1)))
+    # n_skip_females <- length(which((is_na==20) & (data_all$Gender==2)))
+
     print( sprintf("Consented: %d - Gender responses: %d - Ugrad responses: %d - Enough responses: %d",
                                                                     n_consent, n_gender, n_ugrad, n_na) )
     print( sprintf("Remaining respondents: %d", n_all) )
 
-    print( sprintf("Number of respondents who skipped all knowledge questions: %d", n_skip_all))
+    print( sprintf("Number of respondents who skipped all knowledge questions: %d.", n_skip_all))
 
     # some awkward entries
     if (data$Age[[34]] == "40br")
@@ -131,7 +135,6 @@ get_groups <- function(data)
         groups[["researcher_undgrad"]][uu] <- FALSE
         groups[["researcher_phd"]][uu] <- FALSE
         groups[["researcher_postdoc"]][uu] <- FALSE
-        groups[["researcher_master"]][uu] <- FALSE
         groups[["researcher_resass"]][uu] <- FALSE
         groups[["researcher_skipped"]][uu] <- FALSE
         # skipped?
@@ -141,8 +144,10 @@ get_groups <- function(data)
         }
         else
         {
-            # master
-            if (res_type[[uu]]=="1.000000")
+            # undergrads, incl. master, mphil etc.
+            if ((res_type[[uu]]=="1.000000") | ( any(grep('master', tolower(res_type[[uu]])) == 1) |
+                                any(grep('Msc', tolower(res_type[[uu]])) == 1) |
+                                any(grep('MPhil', tolower(res_type[[uu]])) == 1) ))
             {
                 groups[["researcher_undgrad"]][uu] <- TRUE
             } 
@@ -153,13 +158,7 @@ get_groups <- function(data)
             else if (res_type[[uu]]=="3.000000")
             {
                 groups[["researcher_postdoc"]][uu] <- TRUE
-            }
-            else if ( any(grep('master', tolower(res_type[[uu]])) == 1) |
-                                any(grep('Msc', tolower(res_type[[uu]])) == 1) |
-                                any(grep('MPhil', tolower(res_type[[uu]])) == 1) )
-            {
-                groups[["researcher_master"]][uu] <- TRUE
-            }
+            }            
             else if ( any(grep('research assistant', tolower(res_type[[uu]])) == 1) )
             {
                 groups[["researcher_resass"]][uu] <- TRUE
@@ -173,9 +172,7 @@ get_groups <- function(data)
     groups[["researcher_phd_males"]] = groups[["researcher_phd"]] & groups[["males"]]
     groups[["researcher_phd_females"]] = groups[["researcher_phd"]] & groups[["females"]]
     groups[["researcher_postdoc_males"]] = groups[["researcher_postdoc"]] & groups[["males"]]
-    groups[["researcher_postdoc_females"]] = groups[["researcher_postdoc"]] & groups[["females"]]
-    groups[["researcher_master_males"]] = groups[["researcher_master"]] & groups[["males"]]
-    groups[["researcher_master_females"]] = groups[["researcher_master"]] & groups[["females"]]
+    groups[["researcher_postdoc_females"]] = groups[["researcher_postdoc"]] & groups[["females"]]    
     groups[["researcher_resass_males"]] = groups[["researcher_resass"]] & groups[["males"]]
     groups[["researcher_resass_females"]] = groups[["researcher_resass"]] & groups[["females"]]
 
@@ -215,7 +212,7 @@ get_groups <- function(data)
 } # get_groups()
 
 
-demographics <- function(groups_all, data_all)
+get_demographics <- function(groups, data_all)
 {
     # compute basic demographics, e.g. age
     # groups_all:  list, with strings as indices to subgroups, from get_groups()
@@ -223,41 +220,50 @@ demographics <- function(groups_all, data_all)
     # returns: list demos with demographic values (age etc.)
 
     demos <- list()
+    
+    # General
+    demos['N_all'] <- nrow( data_all ) # number of respondents
+    demos['N_males'] <- length(which(groups[["males"]]))
+    demos['N_females'] <- length(which(groups[["females"]]))
+    demos['n_int_males'] <- length(which(groups[["internet_yes"]] & groups[["males"]]))
+    demos['n_int_females'] <- length(which(groups[["internet_yes"]] & groups[["females"]]))
+    demos['n_int'] <- demos[['n_int_males']] + demos[['n_int_females']]
 
-    N <- nrow( data_all ) # number of respondents
-    print( sprintf("%d good respondents", N) )    
+    # Current degree/programme
+    demos['n_ugrad_males'] <- length(which(groups[["researcher_undgrad_males"]]))
+    demos['n_ugrad_females'] <- length(which(groups[["researcher_undgrad_females"]]))
+    demos['n_phd_males'] <- length(which(groups[["researcher_phd_males"]]))
+    demos['n_phd_females'] <- length(which(groups[["researcher_phd_females"]]))
+    demos['n_pd_males'] <- length(which(groups[["researcher_postdoc_males"]]))
+    demos['n_pd_females'] <- length(which(groups[["researcher_postdoc_females"]]))    
+    demos['n_ra_males'] <- length(which(groups[["researcher_resass_males"]]))
+    demos['n_ra_females'] <- length(which(groups[["researcher_resass_females"]]))
 
-    n_males <- length(which(groups_all[["males"]]))
-    n_females <- length(which(groups_all[["females"]]))
+    # undergraduate degree
+    demos['n_psych_males'] <- length(which(groups[["ugrad_group_psych_males"]]))
+    demos['n_psych_females'] <- length(which(groups[["ugrad_group_psych_females"]]))
+    demos['n_meth_males'] <- length(which(groups[["ugrad_group_meth_males"]]))
+    demos['n_meth_females'] <- length(which(groups[["ugrad_group_meth_females"]]))
+    demos['n_biol_males'] <- length(which(groups[["ugrad_group_biol_males"]]))
+    demos['n_biol_females'] <- length(which(groups[["ugrad_group_biol_females"]]))
 
     # Age
-    mean_age <- mean( as.numeric( data_all$Age ), na.rm=T )
-    sd_age <- sd( as.numeric( data_all$Age ), na.rm=T )
-    mean_age_males <- mean( as.numeric( data_all$Age[ groups_all[["males"]] ]), na.rm=T )
-    mean_age_females <- mean( as.numeric( data_all$Age[ groups_all[["females"]] ]), na.rm=T )
-    sd_age_males <- sd( as.numeric( data_all$Age[ groups_all[["males"]] ]), na.rm=T )
-    sd_age_females <- sd( as.numeric( data_all$Age[ groups_all[["females"]] ]), na.rm=T )
-    print( sprintf("Age: %.1f (%.0f), males: %.1f (%.0f), females: %.1f (%.0f)", mean_age, sd_age,
-                        mean_age_males, sd_age_males, mean_age_females, sd_age_females) )
+    demos['mean_age'] <- mean( as.numeric( data_all$Age ), na.rm=T )
+    demos['mean_age_males'] <- mean( as.numeric( data_all$Age[ groups[["males"]] ]), na.rm=T )
+    demos['mean_age_females'] <- mean( as.numeric( data_all$Age[ groups[["females"]] ]), na.rm=T )
+    demos['sd_age'] <- sd( as.numeric( data_all$Age ), na.rm=T )
+    demos['sd_age_males'] <- sd( as.numeric( data_all$Age[ groups[["males"]] ]), na.rm=T )
+    demos['sd_age_females'] <- sd( as.numeric( data_all$Age[ groups[["females"]] ]), na.rm=T )
+    demos['age_psych_males'] <- mean( as.numeric( data_all$Age[ groups[["ugrad_group_psych_males"]] ]), na.rm=T )
+    demos['age_psych_females'] <- mean( as.numeric( data_all$Age[ groups[["ugrad_group_psych_females"]] ]), na.rm=T )
+    demos['age_meth_males'] <- mean( as.numeric( data_all$Age[ groups[["ugrad_group_meth_males"]] ]), na.rm=T )
+    demos['age_meth_females'] <- mean( as.numeric( data_all$Age[ groups[["ugrad_group_meth_females"]] ]), na.rm=T )
+    demos['age_biol_males'] <- mean( as.numeric( data_all$Age[ groups[["ugrad_group_biol_males"]] ]), na.rm=T )
+    demos['age_biol_females'] <- mean( as.numeric( data_all$Age[ groups[["ugrad_group_biol_females"]] ]), na.rm=T )
 
-    n_int_males <- length(which(groups_all[["internet_yes"]] & groups_all[["males"]]))
-    n_int_females <- length(which(groups_all[["internet_yes"]] & groups_all[["females"]]))
-    n_int <- n_int_males + n_int_females
-    print( sprintf("%d of respondents used the internet (males: %.2f, females: %.2f)", n_int, n_int_males/n_males,
-                                                                                n_int_females/n_females) )
-
-    demos['N_all'] <- N
-    demos['N_males'] <- n_males
-    demos['N_females'] <- n_females
-    demos['mean_age'] <- mean_age
-    demos['mean_age_males'] <- mean_age_males
-    demos['mean_age_females'] <- mean_age_females
-    demos['sd_age'] <- mean_age
-    demos['sd_age_males'] <- sd_age_males
-    demos['sd_age_females'] <- sd_age_females
-    demos['n_int'] <- n_int
-    demos['n_int_males'] <- n_int_males
-    demos['n_int_females'] <- n_int_females
+    print( sprintf('Age: %.1f (%.1f)', demos[['mean_age']], demos[['sd_age']]))
+    print( sprintf('Males: %.1f (%.1f)', demos[['mean_age_males']], demos[['sd_age_males']]))
+    print( sprintf('Females: %.1f (%.1f)', demos[['mean_age_females']], demos[['sd_age_females']]))
 
     return( demos )
 } # demographics()
@@ -316,6 +322,25 @@ get_all_Results <- function(data_all, q_meth_names, correct, groups_all)
     Results[["Training needs"]][["All"]] <- get_training_needs(data_all, groups_all[["All"]])
     Results[["Training needs"]][["males"]] <- get_training_needs(data_all, groups_all[["males"]])
     Results[["Training needs"]][["females"]] <- get_training_needs(data_all, groups_all[["females"]])
+    Results[["Training needs"]][["Undgrad All"]] <- get_training_needs(data_all, groups_all[["researcher_undgrad"]])
+    Results[["Training needs"]][["Undgrad males"]] <- get_training_needs(data_all, groups_all[["researcher_undgrad_males"]])
+    Results[["Training needs"]][["Undgrad females"]] <- get_training_needs(data_all, groups_all[["researcher_undgrad_females"]])
+    Results[["Training needs"]][["PhD All"]] <- get_training_needs(data_all, groups_all[["researcher_phd"]])
+    Results[["Training needs"]][["PhD males"]] <- get_training_needs(data_all, groups_all[["researcher_phd_males"]])
+    Results[["Training needs"]][["PhD females"]] <- get_training_needs(data_all, groups_all[["researcher_phd_females"]])
+    Results[["Training needs"]][["Postdoc All"]] <- get_training_needs(data_all, groups_all[["researcher_postdoc"]])
+    Results[["Training needs"]][["Postdoc males"]] <- get_training_needs(data_all, groups_all[["researcher_postdoc_males"]])
+    Results[["Training needs"]][["Postdoc females"]] <- get_training_needs(data_all, groups_all[["researcher_postdoc_females"]])
+    Results[["Training needs"]][["ugrad_group_meth"]] <- get_training_needs(data_all, groups_all[["ugrad_group_meth"]])
+    Results[["Training needs"]][["ugrad_group_meth_males"]] <- get_training_needs(data_all, groups_all[["ugrad_group_meth_males"]])
+    Results[["Training needs"]][["ugrad_group_meth_females"]] <- get_training_needs(data_all, groups_all[["ugrad_group_meth_females"]])
+    Results[["Training needs"]][["ugrad_group_psych"]] <- get_training_needs(data_all, groups_all[["ugrad_grouppsych"]])
+    Results[["Training needs"]][["ugrad_group_psych_males"]] <- get_training_needs(data_all, groups_all[["ugrad_group_psych_males"]])
+    Results[["Training needs"]][["ugrad_group_psych_females"]] <- get_training_needs(data_all, groups_all[["ugrad_group_psych_females"]])
+    Results[["Training needs"]][["ugrad_group_biol"]] <- get_training_needs(data_all, groups_all[["ugrad_group_biol"]])
+    Results[["Training needs"]][["ugrad_group_biol_males"]] <- get_training_needs(data_all, groups_all[["ugrad_group_biol_males"]])
+    Results[["Training needs"]][["ugrad_group_biol_females"]] <- get_training_needs(data_all, groups_all[["ugrad_group_biol_females"]])
+    
 
     # Researcher type
     Results[["Research area"]][["All"]] <- get_indiv_Results(data_all, q_meth_names, correct, groups_all[["All"]])
@@ -324,11 +349,11 @@ get_all_Results <- function(data_all, q_meth_names, correct, groups_all)
     Results[["Research area"]][["females"]] <- get_indiv_Results(data_all, q_meth_names, correct,
                                                                     groups_all[["females"]])
 
-    Results[["Research area"]][["Master's All"]] <- get_indiv_Results(data_all, q_meth_names, correct, groups_all[["researcher_master"]])
-    Results[["Research area"]][["Master's males"]] <- get_indiv_Results(data_all, q_meth_names, correct,
-                                                                    groups_all[["researcher_master_males"]])
-    Results[["Research area"]][["Master's females"]] <- get_indiv_Results(data_all, q_meth_names, correct,
-                                                                    groups_all[["researcher_master_females"]])
+    Results[["Research area"]][["Undgrad All"]] <- get_indiv_Results(data_all, q_meth_names, correct, groups_all[["researcher_undgrad"]])
+    Results[["Research area"]][["Undgrad males"]] <- get_indiv_Results(data_all, q_meth_names, correct,
+                                                                    groups_all[["researcher_undgrad_males"]])
+    Results[["Research area"]][["Undgrad females"]] <- get_indiv_Results(data_all, q_meth_names, correct,
+                                                                    groups_all[["researcher_undgrad_females"]])
     Results[["Research area"]][["PhD All"]] <- get_indiv_Results(data_all, q_meth_names, correct, groups_all[["researcher_phd"]])
     Results[["Research area"]][["PhD males"]] <- get_indiv_Results(data_all, q_meth_names, correct,
                                                                     groups_all[["researcher_phd_males"]])
@@ -534,7 +559,7 @@ get_training_needs <- function(data_ori, idx)
 
 get_research_area <- function(data_ori, idx)
 {
-# plot responses for question "Research area"    
+# get counts for question "Research area"    
 # data_ori: data frame, rows: respondents
 # idx: indices of respondents (rows of data) to take into account
 # Returns: list with six elements, Results
@@ -589,11 +614,19 @@ get_research_area <- function(data_ori, idx)
         }
     }
 
+    
+
     for (cc in c(1:6))
     {
         res_vec[cc] <- length(which(data==cc))
         res_vec[cc] <- res_vec[cc] / len # fraction
-    }   
+    }
+
+    # res_vec[1] = length(which(groups[["researcher_undgrad"]]))
+    # res_vec[2] = length(which(groups[["researcher_phd"]]))
+    # res_vec[3] = length(which(groups[["researcher_postdoc"]]))
+    # res_vec[4] = length(which(groups[["researcher_resass"]]))
+    # res_vec[5] = length(which(groups[["researcher_skipped"]]))
 
     Results <- res_vec
 
@@ -635,7 +668,6 @@ get_future_area <- function(data_ori, idx)
         }
         else
         {
-            # master
             if (data[[uu]]=="1.000000")
             {
                 data[[uu]] = 1
@@ -704,31 +736,40 @@ plot_general_questions <- function(data, groups, my_title, bar_names, bar_legend
         colors <- c()
     }    
 
-    n_bars <- length(data[[1]])
+    n_bars <- length(data[[1]])-1 # -1 to skip "skipped"
     
     ### get data into matrices for bar plots
     data_mats <- list() # matrices to plot for counts and fractions
 
-    data_mats <- matrix(0,n_groups,n_bars) # number of n_groups x n_bars
+    data_mats <- matrix(0,n_groups,n_bars) # number of n_groups x n_bars, in %
         
     # create matrices n_groups x n_names (e.g. male/female x 6)
     g_cnt <- 0
     for (gg in groups) # groups of respondents, e.g. male/female
     {
         g_cnt <- g_cnt + 1
-        data_mats[g_cnt,] <- matrix(data[[gg]],1,n_bars)
+        data_mats[g_cnt,] <- 100*matrix(data[[gg]][1:n_bars],1,n_bars)
     }
    
     # bar plot with labels
     bardat <- barplot(data_mats, names=bar_names, beside=T, cex.axis=2, col=colors, cex.names=1, legend=bar_legend)
     # arrows(bardat,Dat+SD, bardat, Dat, angle=90, code=1, length=0)
     title( my_title )
+
+    # output values on screen
+    cat('\n')
+    print(sprintf('Figure %s', my_title))
+    data_mats <- round(data_mats, digits=2) # round fractions to second digit
+    for (gg in 1:n_groups)       
+    {
+        print(sprintf('%s: %.2f %.2f %.2f %.2f %.2f', groups[gg], data_mats[gg,1], data_mats[gg,2], data_mats[gg,3], data_mats[gg,4], data_mats[gg,5]))
+    }
 } # plot_general_questions()
 
 
 plot_bargraphs <- function(data, groups, quest, restype, my_title, bar_legend)
 {
-# plot data to bar graph, for raw counts and fractions separately
+# plot data to bar graph
 # data: list of data frames with data to plot
 # groups: string, indices to data for respondent group(s) to plot
 # quest: string, the question (or subgroups of questions) for which results to be plotted
@@ -772,7 +813,7 @@ plot_bargraphs <- function(data, groups, quest, restype, my_title, bar_legend)
         for (gg in groups) # groups of respondents, e.g. male/female
         {
             g_cnt <- g_cnt + 1
-            data_mats[g_cnt,1:n_plot] <- matrix(data[[gg]][[rr]][[quest]][to_plot],1,n_plot)
+            data_mats[g_cnt,1:n_plot] <- 100*matrix(data[[gg]][[rr]][[quest]][to_plot],1,n_plot) # as %
         }
             
         ### error bars are NONSENSE at the moment, SD doesn't make sense
@@ -780,9 +821,103 @@ plot_bargraphs <- function(data, groups, quest, restype, my_title, bar_legend)
         # bar plot with labels        
         bardat <- barplot(data_mats, names=names[to_plot], beside=T, cex.axis=2, col=colors, cex.names=2, legend=bar_legend)
         # legend("topright", legend=bar_legend, cex = 1, ncol=2)
+
+        # output values on screen
+        cat('\n')
+        print(sprintf('Figure %s', my_title))
+        data_mats <- round(data_mats, digits=2) # round fractions to second digit
+        for (gg in 1:n_groups)       
+        {
+            print(sprintf('%s: %.2f %.2f %.2f', groups[gg], data_mats[gg,1], data_mats[gg,2], data_mats[gg,3]))
+        }
+
         title( my_title )
     }
 } # plot_bargraphs()
+
+
+plot_demographics <- function(demos)
+{
+# plot bargraphs for demographic information from demographics()
+# demos: dataframe with demographics from demographics()
+# will write to Demographics.pdf
+
+    pdf_name <- sprintf("%s/Demographics.pdf", fig_outdir) # avoid some problems with long filenames
+    pdf(pdf_name, onefile=TRUE)
+    print ( sprintf("Plotting to PDF: %s", pdf_name) )
+
+
+    # number of male/female respondents
+    my_names <- c('Total', 'Males', 'Females') # used for x-labelling in figure
+
+    group_names <- c('N_all', 'N_males', 'N_females') # indices to 'demos'
+
+    colors <- c("black", "violetred4", "blue")
+
+    # data_mat <- matrix(c(demos[group_names]), 1, length(group_names))
+    data_mat <- as.numeric(demos[group_names])
+
+    bardat <- barplot(data_mat, names=my_names, beside=F, cex.axis=2, col=colors, cex.names=2, las=2)
+
+    title('# Participants')
+
+
+    # number of respondents with different undergraduate degrees
+    # my_names <- c('UG\nM', 'UG\nF', 'PhD\nM', 'PhD\nF', 'PD\nM', 'PD\nF', 'MS\nM', 'MS\nF', 'RA\nM', 'RA\nF')
+    my_names <- c('UG', 'PhD', 'PD', 'RA')
+
+    group_names <- c('n_ugrad_males', 'n_ugrad_females', 'n_phd_males', 'n_phd_females', 'n_pd_males', 'n_pd_females', 'n_ra_males', 'n_ra_females')
+
+    colors <- c("black", "grey40")
+
+    # data_mat <- matrix(c(demos[group_names]), 1, length(group_names))
+    data_mat <- as.numeric(demos[group_names])
+
+    # turn into matrix for grouped plotting
+    data_mats <- matrix(0,2,4)
+    data_mats[1,] <- data_mat[seq(1,8,2)]
+    data_mats[2,] <- data_mat[seq(2,8,2)]
+
+    legendtxt = c('males', 'females')
+
+    bardat <- barplot(data_mats, names=my_names, beside=T, cex.axis=2, col=colors, cex.names=1, las=1, horiz=F, legend.text=legendtxt)
+
+    title('# Participants')
+
+
+    # number of respondents in different current research positions
+    my_names <- c('Psych', 'Meth', 'Biol')
+
+    group_names <- c('n_psych_males', 'n_psych_females', 'n_meth_males', 'n_meth_females', 'n_biol_males', 'n_biol_females')
+
+    # data_mat <- matrix(c(demos[group_names]), 1, length(group_names))
+    data_mat <- as.numeric(demos[group_names])
+
+    data_mats <- matrix(0,2,3) 
+    data_mats[1,] <- data_mat[seq(1,6,2)]
+    data_mats[2,] <- data_mat[seq(2,6,2)]
+
+    bardat <- barplot(data_mats, names=my_names, beside=T, cex.axis=2, col=colors, cex.names=1, las=1, horiz=F, legend.text=legendtxt)
+
+    title('# Participants')
+
+    group_names <- c('age_psych_males', 'age_psych_females', 'age_meth_males', 'age_meth_females', 'age_biol_males', 'age_biol_females')
+
+    # data_mat <- matrix(c(demos[group_names]), 1, length(group_names))
+    data_mat <- as.numeric(demos[group_names])
+
+    data_mats <- matrix(0,2,3) 
+    data_mats[1,] <- data_mat[seq(1,6,2)]
+    data_mats[2,] <- data_mat[seq(2,6,2)]
+
+    bardat <- barplot(data_mats, names=my_names, beside=T, cex.axis=2, col=colors, cex.names=1, las=1, horiz=F, legend.text=legendtxt)
+
+    title('Age')
+
+
+    dev.off()
+
+}
 
 
 get_dep_var <- function(Results_sub, qq, categ)
@@ -931,10 +1066,10 @@ multinomial_regression <- function(dv, iv_groups)
 ordered_logistic_regression <- function(dv, iv_groups)
 {
 # compute ordered logistic regression using polr from MASS
-# result computed for dv vs first column in iv
+# (result computed for dv vs first column in iv ???)
 # dv: data frame, dependent variable
 # iv_groups: dict of data frames with independent variables
-#            each dict contains group of variables whose significant is
+#            each dict contains group of variables whose significance is
 #            to be tested separately in model comparison
 # Returns: output of polr()
 
@@ -946,7 +1081,7 @@ ordered_logistic_regression <- function(dv, iv_groups)
     group_names <- names(iv_groups)
     n_groups <- length(iv_groups)
     
-    # combine in data frame
+    # combine dependent and independent variables in data frame
     data_glm <- dv
     for (gg in group_names)
     {
@@ -966,12 +1101,12 @@ ordered_logistic_regression <- function(dv, iv_groups)
    
     print( sprintf("Formula %s", frm) )
 
-    frm1 <- as.formula(frm)   
+    frm1 <- as.formula(frm)
 
     # testing multinom ###
     print("Ordered logistic regression.")
 
-    model <- polr(formula=frm1, data=data_glm, Hess=TRUE)    
+    model <- polr(formula=frm1, data=data_glm, Hess=TRUE)
 
     return(model)
 } # ordered_logistic_regression()
@@ -1030,9 +1165,9 @@ plot_Results <- function(Results, fig_outdir)
 
     # Researcher type results
     print ("Researcher type")
-    groups <- c("Master's All", "Master's males", "Master's females", "PhD All", "PhD males", "PhD females",
+    groups <- c("Undgrad All", "Undgrad males", "Undgrad females", "PhD All", "PhD males", "PhD females",
                     "Postdoc All", "Postdoc males", "Postdoc females")
-    bar_legend <- c("Master's All", "Master's males", "Master's females", "PhD All", "PhD males", "PhD females",
+    bar_legend <- c("Undgrad All", "Undgrad males", "Undgrad females", "PhD All", "PhD males", "PhD females",
                     "Postdoc All", "Postdoc males", "Postdoc females")
     plot_bargraphs(Results[["Research area"]], groups, "sum", restype, "Researcher type", bar_legend)
 
@@ -1040,21 +1175,38 @@ plot_Results <- function(Results, fig_outdir)
     print ("Training needs")
     groups <- c("All", "males", "females")
     bar_legend <- c("All", "males", "females")
-    bar_names <- c("A lot", "Significantly", "A little", "Not at all", "Don't know", "Skipped")
+    bar_names <- c("A lot", "Significantly", "A little", "Not at all", "Don't know")
+    plot_general_questions(Results[["Training needs"]], groups, "Training needs", bar_names, bar_legend)
+
+    groups <- c("Undgrad All", "PhD All", "Postdoc All")
+    bar_legend <- c("Undgrad All", "PhD All", "Postdoc All")
+    bar_names <- c("A lot", "Significantly", "A little", "Not at all", "Don't know")
+    plot_general_questions(Results[["Training needs"]], groups, "Training needs", bar_names, bar_legend)
+
+    groups <- c("Undgrad All", "Undgrad males", "Undgrad females", "PhD All", "PhD males", "PhD females",
+                    "Postdoc All", "Postdoc males", "Postdoc females")
+    bar_legend <- c("Undgrad All", "Undgrad males", "Undgrad females", "PhD All", "PhD males", "PhD females",
+                    "Postdoc All", "Postdoc males", "Postdoc females")
+    bar_names <- c("A lot", "Significantly", "A little", "Not at all", "Don't know")
+    plot_general_questions(Results[["Training needs"]], groups, "Training needs", bar_names, bar_legend)
+
+    groups <- c("ugrad_group_psych_males", "ugrad_group_psych_females", "ugrad_group_meth_males", "ugrad_group_meth_females", "ugrad_group_biol_males", "ugrad_group_biol_females")
+    bar_legend <- c("Undergrads Psychology M", "Undergrads Psychology F", "Undergrads Methods M", "Undergrads Methods F", "Undergrads Biology M", "Undergrads Biology F")
+    bar_names <- c("A lot", "Significantly", "A little", "Not at all", "Don't know")
     plot_general_questions(Results[["Training needs"]], groups, "Training needs", bar_names, bar_legend)
 
     # Researcher type counts
     print ("Researcher type cnts")
     groups <- c("All", "males", "females")
     bar_legend <- c("All", "males", "females")
-    bar_names <- c("Undergraduate", "PhD", "Post-Doc", "Master's", "Res'ch Ass't", "Skipped")
+    bar_names <- c("Undergraduate", "PhD", "Post-Doc", "Master's", "Res'ch Ass't")
     plot_general_questions(Results[["Research area cnts"]], groups, "Researcher type", bar_names, bar_legend)
 
     # Future area
     print ("Future area cnts")
     groups <- c("All", "males", "females")
     bar_legend <- c("All", "males", "females")
-    bar_names <- c("Psych", "Cog Sci", "Cog N'sci", "Cli N'sci", "DK", "Other", "Skipped")
+    bar_names <- c("Psych", "Cog Sci", "Cog N'sci", "Cli N'sci", "DK", "Other")
     plot_general_questions(Results[["Future area cnts"]], groups, "Future area", bar_names, bar_legend)
 
     dev.off()
@@ -1155,7 +1307,8 @@ get_Stats <- function(Results, groups_all)
     stat_list <- list() # collect results from logistic regression
 
     # response categories
-    categs <- c("Cor", "Err", "NoI")
+    # categs <- c("Cor", "Err", "NoI")
+    categs <- c("Cor")
 
     n_pps <- length(groups_all$All)
 
@@ -1172,9 +1325,8 @@ get_Stats <- function(Results, groups_all)
     iv_restyp[which(groups_all[["researcher_undgrad"]])] = 1
     iv_restyp[which(groups_all[["researcher_phd"]])] = 2
     iv_restyp[which(groups_all[["researcher_postdoc"]])] = 3
-    iv_restyp[which(groups_all[["researcher_master"]])] = 4
-    iv_restyp[which(groups_all[["researcher_resass"]])] = 5
-    iv_restyp[which(groups_all[["researcher_skipped"]])] = 6
+    iv_restyp[which(groups_all[["researcher_resass"]])] = 4
+    iv_restyp[which(groups_all[["researcher_skipped"]])] = 5
 
     iv_restyp <- data.frame( iv_restyp )
 
@@ -1185,10 +1337,11 @@ get_Stats <- function(Results, groups_all)
     ## STATS (Logistic multiple regression)
     cat("\n######################\n")
 
-    # INDEPENDENT VARIABLE (male/female)
+    # INDEPENDENT VARIABLES
     iv <- cbind(iv_gender, iv_ugrad, iv_restyp)
 
-    # stats for individual questions
+    # classic binomial regression for individual questions
+    # because dependent variable is 0 or 1
 
     cat("\n###\nIndividual questions.\n###\n")
 
@@ -1198,6 +1351,7 @@ get_Stats <- function(Results, groups_all)
 
         for (cc in categs) # Cor|Err|NoI
         {
+            # DEPENDENT VARIABLE
             dv <- get_dep_var(Results[["sex"]][["All"]], qq, cc)
             dv <- data.frame(dv)
             
@@ -1222,7 +1376,9 @@ get_Stats <- function(Results, groups_all)
 
     cat("\n###\nSub-groups of questions.\n###\n")
 
-    # subgroups of questions
+    # ordered logistic regression for subgroups of questions
+    # because dependent variables can have multiple ordered levels
+
     qgroup_names <- list(linalg = "Linear Algebra", calc = "Calculus", progr = "Programming", signal = "Signal Analysis",
                     phys = "Physics", stats = "Statistics")
 
@@ -1230,7 +1386,7 @@ get_Stats <- function(Results, groups_all)
     {
         cat(sprintf("\n###\n %s\n###\n", qq))
 
-        for (cc in categs)
+        for (cc in categs) # Cor|Err|NoI
         {
             dv <- array( Results[["sex"]][["All"]][["indiv"]][[qq]][[cc]] )
             dv <- as.factor(dv)
@@ -1251,14 +1407,17 @@ get_Stats <- function(Results, groups_all)
 
             stat_list[[qq]][[cc]] <- ctable
 
-            # confidence intervals
-            (ci <- confint(model)) # default method gives profiled CIs
+            # # confidence intervals
+            # (ci <- confint(model)) # default method gives profiled CIs
             
-            print(ci)
+            # print(ci)
         }
     }
 
     cat("\n###\nAcross all questions.\n###\n")
+
+    # ordered logistic regression for subgroups of questions
+    # because dependent variables can have multiple ordered levels
 
     for (cc in categs)
     {
