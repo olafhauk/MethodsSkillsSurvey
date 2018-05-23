@@ -1,7 +1,5 @@
-setwd('U:/Methods/Methods_Skills_Survey_2015/R')
+# setwd('U:/Methods/Methods_Skills_Survey_2015/R')
 # source('Analyze_SurveyMonkeyData.R')
-
-print("Sunshine")
 
 rm(list = ls()) # clear workspace
 
@@ -10,9 +8,9 @@ library(MASS)
 library('readxl') # for reading data from Excel file
 # library(nnet) # for multinomial regression (multinom)
 library(VGAM) # for multinomial regression (vglm)
+library(ggplot2) # plotting bar graphs
 
 
-# datain_filename <- 'U:/Methods/Methods_Skills_Survey_2015/Sheet_1_converted_161212.xls'
 datain_filename <- 'U:/Methods/Methods_Skills_Survey_2015/Sheet_1_converted_180319.xls'
 
 # directory for bar plots etc.
@@ -29,7 +27,6 @@ graphics.off() # close all open plot windows
 
 # READ EXCEL spreadsheet (prepared with Convert_SurveyMonkeyData_4R.m)
 # first row contains column names
-# data_ori <- read_excel('U:/documents/Methods/Methods_Skills_Survey_2015/Sheet_1_converted_151123.xls', col_names=T)
 cat('\n')
 print( sprintf("Reading data from %s", datain_filename))
 data_ori <- read_excel(datain_filename, col_names=T)
@@ -46,31 +43,53 @@ q_names <- names( data_ori )[q_yesno] # names of the real knowledge questions
 q_meth_yesno <- c(15:32) # indices for methods-related questions
 q_meth_names <- names( data_ori )[q_meth_yesno] # names of the methods-related questions
 
-# remove row with correct responses from data frame
+# remove row with correct response options from data frame
 # note: row numbering now starts at 2
 data_all <- data_ori[2:nrow(data_ori),]
 
 # PRUNE respondents with insufficient responses etc.
 cat('\n')
 print("Prune data.")
-data_all <- prune_respondents(data_all, qnames)
+# returns list with "data" and "data_skipped"
+data_dummy <- prune_respondents(data_all, qnames)
+
+data_all <- data_dummy$data
+
+# data for those who skipped all methods questions
+# data_skipped <- data_dummy$data_skipped
 
 # get indices for various SUB-GROUPS of respondents
 cat('\n')
 print("Get group indices.")
-groups_all <- get_groups(data_all)
-# groups_all$needs_alot contains Boolean yes/no
+# returns list with "groups" and new "data", only incl. subjects
+# with classifiable undergraduate degrees
+get_it <- get_groups(data_all)
+groups_all <- get_it$groups
+data_all <- get_it$data
+
+# get_it <- get_groups(data_skipped)
+# groups_skipped <- get_it$groups
 
 ###
 ######### Analysis ###########
 ###
 cat('\n')
 print("Computing demographics.")
+print("Valid respondents.")
 demos <- get_demographics(groups_all, data_all)
+
+# print("Respondents with too many skips.")
+# demos_skipped <- get_demographics(groups_skipped, data_skipped)
 
 cat('\n')
 print("Plotting demographic data.")
-plot_demographics(demos)
+
+pdf_name <- sprintf("%s/Demographics.pdf", fig_outdir) # avoid some problems with long filenames
+plot_demographics(demos, pdf_name)
+
+# problem with "skipped": respondents also skipped many demographic questions
+# pdf_name <- sprintf("%s/Demographics_skipped.pdf", fig_outdir) # avoid some problems with long filenames
+# plot_demographics(demos_skipped, pdf_name)
 
 cat('\n')
 print("Get results list.")
